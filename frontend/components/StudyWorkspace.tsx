@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { PhraseAssistantDrawer } from "@/components/PhraseAssistantDrawer";
 import { TranscriptFetchError, fetchTranscript } from "@/lib/fetch-transcript";
 import {
   buildInitialTranslationState,
@@ -24,6 +25,11 @@ import {
   isVideoSaved,
   removeSavedVideo,
 } from "@/lib/saved-videos-storage";
+import {
+  GEMINI_MODEL_FLASH,
+  getStoredGeminiModelId,
+  setStoredGeminiModelId,
+} from "@/lib/gemini-model-storage";
 
 export interface StudyWorkspaceProps {
   /** Se definido, preenche e tenta carregar legendas ao montar/atualizar. */
@@ -48,6 +54,12 @@ export function StudyWorkspace({
   /** Linha em edição: input abre ao clicar no verso (junto com seek + loop A–B). */
   const [notesLineIndex, setNotesLineIndex] = useState<number | null>(null);
   const [savedInLibrary, setSavedInLibrary] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantCtx, setAssistantCtx] = useState<{
+    lineIndex: number;
+    lineText: string;
+  } | null>(null);
+  const [geminiModelId, setGeminiModelId] = useState(GEMINI_MODEL_FLASH);
 
   const apiReady = useYoutubeIframeApiReady();
   const { mountRef, player, playerReady } = useYoutubeStudyPlayer(apiReady, videoId);
@@ -135,6 +147,17 @@ export function StudyWorkspace({
     setSavedInLibrary(isVideoSaved(videoId));
   }, [videoId]);
 
+  useEffect(() => {
+    setGeminiModelId(getStoredGeminiModelId());
+  }, []);
+
+  useEffect(() => {
+    if (videoId === null || transcript === null) {
+      setAssistantOpen(false);
+      setAssistantCtx(null);
+    }
+  }, [videoId, transcript]);
+
   const handleLineActivate = useCallback(
     (lineIndex: number): void => {
       if (transcript === null || player === null) return;
@@ -155,9 +178,39 @@ export function StudyWorkspace({
     setNotesLineIndex(null);
   }, []);
 
+  const handleOpenAssistant = useCallback(
+    (lineIndex: number): void => {
+      if (transcript === null) return;
+      const line = transcript.lines[lineIndex];
+      if (!line) return;
+      setAssistantCtx({ lineIndex, lineText: line.text });
+      setAssistantOpen(true);
+    },
+    [transcript],
+  );
+
+  const handleCloseAssistant = useCallback((): void => {
+    setAssistantOpen(false);
+    setAssistantCtx(null);
+  }, []);
+
+  const handleGeminiModelChange = useCallback((id: string): void => {
+    setGeminiModelId(id);
+    setStoredGeminiModelId(id);
+  }, []);
+
+  const handleAcceptAssistantTranslation = useCallback(
+    (text: string): void => {
+      if (assistantCtx === null) return;
+      handleTranslationChange(assistantCtx.lineIndex, text);
+    },
+    [assistantCtx, handleTranslationChange],
+  );
+
   const handleClearLoop = useCallback((): void => {
     setAbLoop(null);
     setAbLoopLineIndex(null);
+    setNotesLineIndex(null);
   }, []);
 
   const handleSaveToLibrary = useCallback((): void => {
@@ -272,10 +325,6 @@ export function StudyWorkspace({
             </section>
 
             <section className="flex min-h-[50vh] max-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-zinc-900/80 to-[#0a0a0a] ring-1 ring-white/5 sm:max-h-[calc(100dvh-10rem)] lg:max-h-[calc(100dvh-6.5rem)]">
-              <p className="shrink-0 border-b border-white/5 px-4 py-3 text-center text-xs text-zinc-500">
-                Clique no verso em inglês para ir ao trecho, ativar loop A–B e abrir a anotação (nova ou para editar).
-                Anotações salvas aparecem abaixo do verso.
-              </p>
               <LyricsPanel
                 lines={transcript.lines}
                 activeLineIndex={activeLineIndex}
@@ -285,11 +334,24 @@ export function StudyWorkspace({
                 onTranslationChange={handleTranslationChange}
                 onTranslationEditEnd={handleTranslationEditEnd}
                 onLineActivate={handleLineActivate}
+                onOpenAssistant={handleOpenAssistant}
               />
             </section>
           </div>
         )}
       </main>
+      {assistantOpen && videoId !== null && assistantCtx !== null ? (
+        <PhraseAssistantDrawer
+          open={assistantOpen}
+          onClose={handleCloseAssistant}
+          videoId={videoId}
+          lineIndex={assistantCtx.lineIndex}
+          lineText={assistantCtx.lineText}
+          modelId={geminiModelId}
+          onModelChange={handleGeminiModelChange}
+          onAcceptTranslation={handleAcceptAssistantTranslation}
+        />
+      ) : null}
     </div>
   );
 }

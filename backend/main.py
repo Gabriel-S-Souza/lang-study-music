@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Path
@@ -16,6 +21,9 @@ from youtube_transcript_api._errors import (
     RequestBlocked,
     YouTubeRequestFailed,
 )
+
+from http_logging_middleware import HttpRequestLoggingMiddleware, setup_http_request_logging
+from study_phrase import router as study_phrase_router
 
 VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 
@@ -45,6 +53,8 @@ def _parse_origins(value: str) -> list[str]:
 
 app = FastAPI(title="English Study Music API", version="1.0.0")
 
+setup_http_request_logging()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_parse_origins(os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")),
@@ -52,8 +62,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(HttpRequestLoggingMiddleware)
 
 _ytt_api = YouTubeTranscriptApi()
+
+app.include_router(study_phrase_router, prefix="/api/study", tags=["study"])
 
 
 @app.get("/api/videos/{video_id}/transcript", response_model=TranscriptResponse)

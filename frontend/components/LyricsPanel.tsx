@@ -14,6 +14,7 @@ export interface LyricsPanelProps {
   readonly onTranslationChange: (lineIndex: number, value: string) => void;
   readonly onTranslationEditEnd: () => void;
   readonly onLineActivate: (lineIndex: number) => void;
+  readonly onOpenAssistant?: (lineIndex: number) => void;
 }
 
 function easeOutCubic(t: number): number {
@@ -83,6 +84,7 @@ export function LyricsPanel({
   onTranslationChange,
   onTranslationEditEnd,
   onLineActivate,
+  onOpenAssistant,
 }: LyricsPanelProps): ReactElement {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -217,15 +219,30 @@ export function LyricsPanel({
                       className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                     />
                   </label>
-                  <button
-                    type="button"
-                    onClick={(): void => {
-                      onTranslationEditEnd();
-                    }}
-                    className="text-xs font-medium text-zinc-500 underline-offset-2 hover:text-zinc-400 hover:underline"
-                  >
-                    Fechar edição
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {onOpenAssistant !== undefined ? (
+                      <button
+                        type="button"
+                        onClick={(e): void => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onOpenAssistant(index);
+                        }}
+                        className="text-xs font-semibold text-emerald-400/95 underline-offset-2 hover:text-emerald-300 hover:underline"
+                      >
+                        Assistente
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={(): void => {
+                        onTranslationEditEnd();
+                      }}
+                      className="text-xs font-medium text-zinc-500 underline-offset-2 hover:text-zinc-400 hover:underline"
+                    >
+                      Fechar edição
+                    </button>
+                  </div>
                 </div>
               ) : null}
 
