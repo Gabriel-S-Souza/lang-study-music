@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #121212;
+  --foreground: #fafafa;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-study-sans), system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-study-mono), ui-monospace, monospace;
+}
