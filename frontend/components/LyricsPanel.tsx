@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactElement } from "react";
+import { useEffect, useRef, type FocusEvent, type KeyboardEvent, type ReactElement } from "react";
 
 import type { TranscriptLine } from "@/types/transcript";
 
@@ -8,10 +8,11 @@ export interface LyricsPanelProps {
   readonly lines: readonly TranscriptLine[];
   readonly activeLineIndex: number;
   readonly abLoopLineIndex: number | null;
-  /** Se não for `null`, só essa linha exibe o campo de tradução/anotação. */
+  /** Linha cujo input está aberto (mesmo índice do clique no verso principal). */
   readonly translationEditorLineIndex: number | null;
   readonly translations: Readonly<Record<number, string>>;
   readonly onTranslationChange: (lineIndex: number, value: string) => void;
+  readonly onTranslationEditEnd: () => void;
   readonly onLineActivate: (lineIndex: number) => void;
 }
 
@@ -80,6 +81,7 @@ export function LyricsPanel({
   translationEditorLineIndex,
   translations,
   onTranslationChange,
+  onTranslationEditEnd,
   onLineActivate,
 }: LyricsPanelProps): ReactElement {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -137,10 +139,14 @@ export function LyricsPanel({
         {lines.map((line, index) => {
           const isActive = index === activeLineIndex;
           const isLooping = index === abLoopLineIndex;
-          const showEditor = index === translationEditorLineIndex;
+          const isEditing = index === translationEditorLineIndex;
+          const translationRaw = translations[index] ?? "";
+          const hasTranslation = translationRaw.trim().length > 0;
+
           return (
             <div
               key={`${line.start}-${index}`}
+              data-lyrics-row=""
               ref={(node): void => {
                 if (node === null) {
                   rowRefs.current.delete(index);
@@ -178,23 +184,60 @@ export function LyricsPanel({
                   </p>
                 ) : null}
               </button>
-              {showEditor ? (
-                <label className="mt-2 block opacity-100 transition-opacity duration-300">
-                  <span className="sr-only">Tradução linha {index + 1}</span>
-                  <input
-                    type="text"
-                    value={translations[index] ?? ""}
-                    onChange={(e): void => {
-                      onTranslationChange(index, e.target.value);
+
+              {isEditing ? (
+                <div className="mt-2 space-y-2">
+                  <label className="block">
+                    <span className="sr-only">Tradução linha {index + 1}</span>
+                    <input
+                      type="text"
+                      value={translationRaw}
+                      onChange={(e): void => {
+                        onTranslationChange(index, e.target.value);
+                      }}
+                      onClick={(e): void => {
+                        e.stopPropagation();
+                      }}
+                      onBlur={(e: FocusEvent<HTMLInputElement>): void => {
+                        const row = e.currentTarget.closest("[data-lyrics-row]");
+                        const next = e.relatedTarget;
+                        if (row !== null && next instanceof Node && row.contains(next)) {
+                          return;
+                        }
+                        onTranslationEditEnd();
+                      }}
+                      onKeyDown={(e: KeyboardEvent<HTMLInputElement>): void => {
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          onTranslationEditEnd();
+                        }
+                      }}
+                      autoFocus
+                      placeholder="Tradução / anotação"
+                      className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={(): void => {
+                      onTranslationEditEnd();
                     }}
-                    onClick={(e): void => {
-                      e.stopPropagation();
-                    }}
-                    autoFocus
-                    placeholder="Tradução / anotação"
-                    className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
-                  />
-                </label>
+                    className="text-xs font-medium text-zinc-500 underline-offset-2 hover:text-zinc-400 hover:underline"
+                  >
+                    Fechar edição
+                  </button>
+                </div>
+              ) : null}
+
+              {!isEditing && hasTranslation ? (
+                <p
+                  className={[
+                    "mt-2.5 w-full text-center text-[0.8125rem] font-normal leading-relaxed sm:text-sm",
+                    isActive ? "text-emerald-200/85" : "text-emerald-200/55",
+                  ].join(" ")}
+                >
+                  {translationRaw.trim()}
+                </p>
               ) : null}
             </div>
           );

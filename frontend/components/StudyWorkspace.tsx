@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { TranscriptFetchError, fetchTranscript } from "@/lib/fetch-transcript";
@@ -18,8 +19,23 @@ import {
 import { useYoutubeIframeApiReady } from "@/hooks/useYoutubeIframeApiReady";
 import { useYoutubeStudyPlayer } from "@/hooks/useYoutubeStudyPlayer";
 import type { TranscriptResponse } from "@/types/transcript";
+import {
+  addSavedVideo,
+  isVideoSaved,
+  removeSavedVideo,
+} from "@/lib/saved-videos-storage";
 
-export function StudyWorkspace(): ReactElement {
+export interface StudyWorkspaceProps {
+  /** Se definido, preenche e tenta carregar legendas ao montar/atualizar. */
+  readonly initialVideoId?: string | null;
+  /** Mostra link para a biblioteca (`/`). */
+  readonly showLibraryLink?: boolean;
+}
+
+export function StudyWorkspace({
+  initialVideoId = null,
+  showLibraryLink = false,
+}: StudyWorkspaceProps): ReactElement {
   const [urlOrIdInput, setUrlOrIdInput] = useState("");
   const [videoId, setVideoId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
@@ -29,8 +45,9 @@ export function StudyWorkspace(): ReactElement {
   const [activeLineIndex, setActiveLineIndex] = useState(-1);
   const [abLoop, setAbLoop] = useState<AbLoopWindow | null>(null);
   const [abLoopLineIndex, setAbLoopLineIndex] = useState<number | null>(null);
-  /** Linha em que o painel de tradução/anotação está visível (só após clique). */
+  /** Linha em edição: input abre ao clicar no verso (junto com seek + loop A–B). */
   const [notesLineIndex, setNotesLineIndex] = useState<number | null>(null);
+  const [savedInLibrary, setSavedInLibrary] = useState(false);
 
   const apiReady = useYoutubeIframeApiReady();
   const { mountRef, player, playerReady } = useYoutubeStudyPlayer(apiReady, videoId);
@@ -68,13 +85,14 @@ export function StudyWorkspace(): ReactElement {
     }`;
   }, [transcript]);
 
-  const handleLoadTranscript = useCallback(async (): Promise<void> => {
+  const loadTranscriptForRawInput = useCallback(async (raw: string): Promise<void> => {
     setLoadError(null);
-    const id = parseYoutubeVideoId(urlOrIdInput);
+    const id = parseYoutubeVideoId(raw);
     if (id === null) {
       setLoadError("Cole uma URL válida do YouTube ou o ID de 11 caracteres.");
       return;
     }
+    setUrlOrIdInput(raw.trim());
     setLoadingTranscript(true);
     setAbLoop(null);
     setAbLoopLineIndex(null);
@@ -96,7 +114,26 @@ export function StudyWorkspace(): ReactElement {
     } finally {
       setLoadingTranscript(false);
     }
-  }, [urlOrIdInput]);
+  }, []);
+
+  const handleLoadTranscript = useCallback(async (): Promise<void> => {
+    await loadTranscriptForRawInput(urlOrIdInput);
+  }, [loadTranscriptForRawInput, urlOrIdInput]);
+
+  useEffect(() => {
+    if (initialVideoId === null || initialVideoId === "") return;
+    const id = parseYoutubeVideoId(initialVideoId);
+    if (id === null) return;
+    void loadTranscriptForRawInput(initialVideoId.trim().length > 0 ? initialVideoId.trim() : id);
+  }, [initialVideoId, loadTranscriptForRawInput]);
+
+  useEffect(() => {
+    if (videoId === null) {
+      setSavedInLibrary(false);
+      return;
+    }
+    setSavedInLibrary(isVideoSaved(videoId));
+  }, [videoId]);
 
   const handleLineActivate = useCallback(
     (lineIndex: number): void => {
@@ -114,22 +151,49 @@ export function StudyWorkspace(): ReactElement {
     [player, transcript],
   );
 
+  const handleTranslationEditEnd = useCallback((): void => {
+    setNotesLineIndex(null);
+  }, []);
+
   const handleClearLoop = useCallback((): void => {
     setAbLoop(null);
     setAbLoopLineIndex(null);
   }, []);
 
+  const handleSaveToLibrary = useCallback((): void => {
+    if (videoId === null) return;
+    const raw = urlOrIdInput.trim().length > 0 ? urlOrIdInput.trim() : videoId;
+    addSavedVideo(raw);
+    setSavedInLibrary(true);
+  }, [urlOrIdInput, videoId]);
+
+  const handleRemoveFromLibrary = useCallback((): void => {
+    if (videoId === null) return;
+    removeSavedVideo(videoId);
+    setSavedInLibrary(false);
+  }, [videoId]);
+
   return (
     <div className="min-h-screen bg-[#121212] text-zinc-100">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#121212]/95 px-4 py-3 backdrop-blur-md sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
-              English + música
-            </h1>
-            <p className="text-xs text-zinc-500 sm:text-sm">
-              Listening com legendas, tradução e loop por verso.
-            </p>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#121212]/95 px-2 py-3 backdrop-blur-md sm:px-3 lg:px-4">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+            {showLibraryLink ? (
+              <Link
+                href="/"
+                className="shrink-0 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:bg-white/10 sm:text-sm"
+              >
+                Biblioteca
+              </Link>
+            ) : null}
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
+                English + música
+              </h1>
+              <p className="text-xs text-zinc-500 sm:text-sm">
+                Listening com legendas, tradução e loop por verso.
+              </p>
+            </div>
           </div>
           <div className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row sm:items-center">
             <input
@@ -154,17 +218,17 @@ export function StudyWorkspace(): ReactElement {
           </div>
         </div>
         {loadError !== null ? (
-          <p className="mx-auto mt-2 max-w-6xl px-4 text-sm text-red-400 sm:px-6">{loadError}</p>
+          <p className="mx-auto mt-2 w-full max-w-[1800px] px-2 text-sm text-red-400 sm:px-3">{loadError}</p>
         ) : null}
       </header>
 
-      <main className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
+      <main className="mx-auto w-full max-w-[1800px] px-2 py-4 sm:px-3 sm:py-5 lg:px-4 lg:py-6">
         {videoId === null || transcript === null ? (
           <p className="mt-8 text-center text-sm text-zinc-500">
             Cole o link de uma música no YouTube e carregue as legendas em inglês para começar.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)] lg:gap-6 xl:gap-8">
             <section className="flex flex-col gap-3 lg:sticky lg:top-24 lg:self-start">
               <div className="aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
                 <div ref={mountRef} className="h-full w-full" />
@@ -187,12 +251,30 @@ export function StudyWorkspace(): ReactElement {
                 >
                   Sair do loop A–B
                 </button>
+                {savedInLibrary ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveFromLibrary}
+                    className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-400 transition hover:bg-white/10 sm:text-sm"
+                  >
+                    Remover da biblioteca
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSaveToLibrary}
+                    className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-200 transition hover:bg-emerald-500/25 sm:text-sm"
+                  >
+                    Salvar na biblioteca
+                  </button>
+                )}
               </div>
             </section>
 
             <section className="flex min-h-[50vh] max-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-zinc-900/80 to-[#0a0a0a] ring-1 ring-white/5 sm:max-h-[calc(100dvh-10rem)] lg:max-h-[calc(100dvh-6.5rem)]">
               <p className="shrink-0 border-b border-white/5 px-4 py-3 text-center text-xs text-zinc-500">
-                Clique num verso para ir ao trecho, ativar loop A–B e abrir tradução / anotações.
+                Clique no verso em inglês para ir ao trecho, ativar loop A–B e abrir a anotação (nova ou para editar).
+                Anotações salvas aparecem abaixo do verso.
               </p>
               <LyricsPanel
                 lines={transcript.lines}
@@ -201,6 +283,7 @@ export function StudyWorkspace(): ReactElement {
                 translationEditorLineIndex={notesLineIndex}
                 translations={translations}
                 onTranslationChange={handleTranslationChange}
+                onTranslationEditEnd={handleTranslationEditEnd}
                 onLineActivate={handleLineActivate}
               />
             </section>

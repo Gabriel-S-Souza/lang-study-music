@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 
-import { StudyWorkspace } from "@/components/StudyWorkspace";
+import { LibraryHome } from "@/components/LibraryHome";
 
 export default function Home(): ReactElement {
-  return <StudyWorkspace />;
+  return <LibraryHome />;
 }
