@@ -90,6 +90,8 @@ export function LyricsPanel({
   const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const prevActiveRef = useRef<number>(-1);
   const scrollAnimRef = useRef<number | null>(null);
+  const activeLineIndexRef = useRef(activeLineIndex);
+  activeLineIndexRef.current = activeLineIndex;
 
   useEffect(
     () => (): void => {
@@ -100,6 +102,29 @@ export function LyricsPanel({
     },
     [],
   );
+
+  /** Quando a altura do painel muda (flex, rotação, barra do browser), mantém o verso ativo no centro. */
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (root === null) return;
+
+    const recenterActiveRow = (): void => {
+      const idx = activeLineIndexRef.current;
+      if (idx < 0) return;
+      const row = rowRefs.current.get(idx);
+      if (row === undefined) return;
+      const target = computeScrollTopToCenterRow(root, row);
+      root.scrollTop = target;
+    };
+
+    const ro = new ResizeObserver(recenterActiveRow);
+    ro.observe(root);
+    window.addEventListener("resize", recenterActiveRow);
+    return (): void => {
+      ro.disconnect();
+      window.removeEventListener("resize", recenterActiveRow);
+    };
+  }, []);
 
   useEffect(() => {
     if (activeLineIndex < 0) {

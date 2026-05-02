@@ -31,6 +31,17 @@ import {
   setStoredGeminiModelId,
 } from "@/lib/gemini-model-storage";
 
+/** Velocidades oferecidas pelo app (API do YouTube aceita estes valores na maioria dos vídeos). */
+const STUDY_PLAYBACK_RATES = [0.5, 0.75, 1] as const;
+type StudyPlaybackRate = (typeof STUDY_PLAYBACK_RATES)[number];
+
+function playbackRateShortLabel(rate: StudyPlaybackRate): string {
+  return rate.toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: rate % 1 === 0 ? 0 : 2,
+  });
+}
+
 export interface StudyWorkspaceProps {
   /** Se definido, preenche e tenta carregar legendas ao montar/atualizar. */
   readonly initialVideoId?: string | null;
@@ -60,6 +71,7 @@ export function StudyWorkspace({
     lineText: string;
   } | null>(null);
   const [geminiModelId, setGeminiModelId] = useState(GEMINI_MODEL_FLASH);
+  const [playbackRate, setPlaybackRate] = useState<StudyPlaybackRate>(1);
 
   const apiReady = useYoutubeIframeApiReady();
   const { mountRef, player, playerReady } = useYoutubeStudyPlayer(apiReady, videoId);
@@ -158,6 +170,15 @@ export function StudyWorkspace({
     }
   }, [videoId, transcript]);
 
+  useEffect(() => {
+    if (player === null || !playerReady) return;
+    try {
+      player.setPlaybackRate(playbackRate);
+    } catch {
+      /* noop */
+    }
+  }, [player, playerReady, playbackRate]);
+
   const handleLineActivate = useCallback(
     (lineIndex: number): void => {
       if (transcript === null || player === null) return;
@@ -226,9 +247,17 @@ export function StudyWorkspace({
     setSavedInLibrary(false);
   }, [videoId]);
 
+  const studyLayoutActive = videoId !== null && transcript !== null;
+
   return (
-    <div className="min-h-screen bg-[#121212] text-zinc-100">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#121212]/95 px-2 py-3 backdrop-blur-md sm:px-3 lg:px-4">
+    <div
+      className={
+        studyLayoutActive
+          ? "flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#121212] text-zinc-100 lg:max-h-none lg:h-auto lg:min-h-screen lg:overflow-visible"
+          : "min-h-screen bg-[#121212] text-zinc-100"
+      }
+    >
+      <header className="sticky top-0 z-20 shrink-0 border-b border-white/10 bg-[#121212]/95 px-2 py-3 backdrop-blur-md sm:px-3 lg:px-4">
         <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
             {showLibraryLink ? (
@@ -275,56 +304,127 @@ export function StudyWorkspace({
         ) : null}
       </header>
 
-      <main className="mx-auto w-full max-w-[1800px] px-2 py-4 sm:px-3 sm:py-5 lg:px-4 lg:py-6">
+      <main
+        className={
+          studyLayoutActive
+            ? "mx-auto flex min-h-0 w-full max-w-[1800px] flex-1 flex-col px-2 py-2 sm:px-3 sm:py-3 lg:block lg:flex-none lg:px-4 lg:py-6"
+            : "mx-auto w-full max-w-[1800px] px-2 py-4 sm:px-3 sm:py-5 lg:px-4 lg:py-6"
+        }
+      >
         {videoId === null || transcript === null ? (
           <p className="mt-8 text-center text-sm text-zinc-500">
             Cole o link de uma música no YouTube e carregue as legendas em inglês para começar.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)] lg:gap-6 xl:gap-8">
-            <section className="flex flex-col gap-3 lg:sticky lg:top-24 lg:self-start">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 lg:grid lg:flex-none lg:min-h-0 lg:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)] lg:gap-6 xl:gap-8">
+            <section className="flex shrink-0 flex-col gap-2 lg:sticky lg:top-24 lg:self-start">
               <div className="aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
                 <div ref={mountRef} className="h-full w-full" />
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500 sm:text-sm">
-                <span className="truncate font-mono text-zinc-400">ID: {videoId}</span>
-                <span className={playerReady ? "text-emerald-400" : "text-amber-400"}>
-                  {playerReady ? "Player pronto" : "Player carregando…"}
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-zinc-500 sm:text-xs">
+                <span className="min-w-0 truncate font-mono text-zinc-400">ID: {videoId}</span>
+                <span className={playerReady ? "shrink-0 text-emerald-400" : "shrink-0 text-amber-400"}>
+                  {playerReady ? "Pronto" : "Carregando…"}
                 </span>
               </div>
               {transcriptMeta !== null ? (
-                <p className="text-xs text-zinc-500 sm:text-sm">{transcriptMeta}</p>
+                <p className="text-[10px] text-zinc-500 sm:text-xs">{transcriptMeta}</p>
               ) : null}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+                <div
+                  className="inline-flex shrink-0 rounded-md border border-white/15 bg-black/40 p-px"
+                  title="Velocidade de reprodução"
+                >
+                  {STUDY_PLAYBACK_RATES.map((rate) => (
+                    <button
+                      key={rate}
+                      type="button"
+                      disabled={!playerReady}
+                      aria-label={`Velocidade ${playbackRateShortLabel(rate)}×`}
+                      onClick={(): void => {
+                        setPlaybackRate(rate);
+                      }}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none transition sm:px-2 sm:py-1 sm:text-xs ${
+                        playbackRate === rate
+                          ? "bg-white/15 text-white"
+                          : "text-zinc-400 hover:bg-white/10 hover:text-zinc-200"
+                      } disabled:cursor-not-allowed disabled:opacity-40`}
+                    >
+                      {playbackRateShortLabel(rate)}×
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   onClick={handleClearLoop}
                   disabled={abLoop === null}
-                  className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+                  aria-label="Sair do loop A–B"
+                  title="Sair do loop A–B"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/15 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:h-8 sm:w-8"
                 >
-                  Sair do loop A–B
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                    aria-hidden
+                  >
+                    <path d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.001 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                  </svg>
                 </button>
                 {savedInLibrary ? (
                   <button
                     type="button"
                     onClick={handleRemoveFromLibrary}
-                    className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-400 transition hover:bg-white/10 sm:text-sm"
+                    aria-label="Remover da biblioteca"
+                    title="Remover da biblioteca"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/15 text-zinc-400 transition hover:bg-white/10 hover:text-zinc-300 sm:h-8 sm:w-8"
                   >
-                    Remover da biblioteca
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.75}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                      aria-hidden
+                    >
+                      <path d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                    </svg>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={handleSaveToLibrary}
-                    className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-200 transition hover:bg-emerald-500/25 sm:text-sm"
+                    aria-label="Salvar na biblioteca"
+                    title="Salvar na biblioteca"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-emerald-500/35 bg-emerald-500/10 text-emerald-300 transition hover:bg-emerald-500/20 sm:h-8 sm:w-8"
                   >
-                    Salvar na biblioteca
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.75}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                      aria-hidden
+                    >
+                      <path d="M12 10.5v6m3-3H9m4.06-7.19-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+                    </svg>
                   </button>
                 )}
               </div>
             </section>
 
-            <section className="flex min-h-[50vh] max-h-[calc(100dvh-11rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-zinc-900/80 to-[#0a0a0a] ring-1 ring-white/5 sm:max-h-[calc(100dvh-10rem)] lg:max-h-[calc(100dvh-6.5rem)]">
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-zinc-900/80 to-[#0a0a0a] ring-1 ring-white/5 lg:max-h-[calc(100dvh-6.5rem)] lg:min-h-[50vh] lg:flex-none">
               <LyricsPanel
                 lines={transcript.lines}
                 activeLineIndex={activeLineIndex}

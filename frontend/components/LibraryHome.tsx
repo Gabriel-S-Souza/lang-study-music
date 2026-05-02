@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
 import {
@@ -26,7 +26,14 @@ export function LibraryHome(): ReactElement {
   const router = useRouter();
   const [urlInput, setUrlInput] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<SavedVideoEntry[]>(() => listSavedVideos());
+  /** Só lê `localStorage` após mount para o HTML do SSR bater com o primeiro paint no cliente. */
+  const [savedHydrated, setSavedHydrated] = useState(false);
+  const [saved, setSaved] = useState<SavedVideoEntry[]>([]);
+
+  useEffect(() => {
+    setSaved(listSavedVideos());
+    setSavedHydrated(true);
+  }, []);
 
   const refreshSaved = useCallback((): void => {
     setSaved(listSavedVideos());
@@ -97,7 +104,11 @@ export function LibraryHome(): ReactElement {
 
         <section className="mt-10">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Salvos</h2>
-          {emptyLibrary ? (
+          {!savedHydrated ? (
+            <p className="mt-4 text-center text-sm text-zinc-600" aria-live="polite">
+              Carregando salvos…
+            </p>
+          ) : emptyLibrary ? (
             <p className="mt-4 text-center text-sm text-zinc-600">
               Nenhum vídeo na biblioteca ainda. Salve a partir da sessão de estudo ou use o campo acima.
             </p>
