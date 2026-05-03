@@ -268,6 +268,16 @@ export function PhraseAssistantDrawer({
                   </ul>
                 </div>
               ) : null}
+              {openingMeta.explanation !== null && openingMeta.explanation.trim().length > 0 ? (
+                <div>
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-zinc-500">
+                    Explicação
+                  </p>
+                  <div className="mt-1">
+                    <SimpleMarkdownish text={openingMeta.explanation} />
+                  </div>
+                </div>
+              ) : null}
               {openingMeta.reusableChunks !== null && openingMeta.reusableChunks.length > 0 ? (
                 <div>
                   <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-zinc-500">
@@ -282,16 +292,6 @@ export function PhraseAssistantDrawer({
                       </li>
                     ))}
                   </ul>
-                </div>
-              ) : null}
-              {openingMeta.explanation !== null && openingMeta.explanation.trim().length > 0 ? (
-                <div>
-                  <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-zinc-500">
-                    Explicação
-                  </p>
-                  <div className="mt-1">
-                    <SimpleMarkdownish text={openingMeta.explanation} />
-                  </div>
                 </div>
               ) : null}
             </div>
