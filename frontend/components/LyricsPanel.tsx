@@ -52,7 +52,9 @@ function runSmoothScrollTo(
     return;
   }
 
-  const duration = Math.min(780, Math.max(280, durationMs));
+  /** 25% mais rápido que o baseline anterior (280–780 ms no cálculo bruto). */
+  const k = 0.75;
+  const duration = Math.min(780 * k, Math.max(280 * k, durationMs * k));
 
   let startTime: number | null = null;
 
@@ -182,7 +184,7 @@ export function LyricsPanel({
                 }
               }}
               className={[
-                "rounded-xl px-3 py-3 transition-[background-color,box-shadow] duration-500 ease-out sm:px-4",
+                "rounded-xl px-3 py-3 transition-[background-color,box-shadow] duration-75 ease-out sm:px-4",
                 isActive
                   ? "bg-white/[0.09] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]"
                   : "bg-transparent hover:bg-white/[0.04]",
@@ -197,16 +199,16 @@ export function LyricsPanel({
               >
                 <p
                   className={[
-                    "origin-center text-center text-lg font-medium leading-relaxed tracking-tight transition-[transform,color,opacity,filter] duration-500 ease-out sm:text-xl",
+                    "text-center text-lg font-medium leading-relaxed tracking-tight transition-[color,opacity,filter] duration-75 ease-out sm:text-xl",
                     isActive
-                      ? "scale-[1.03] text-white opacity-100 [text-shadow:0_0_24px_rgba(255,255,255,0.12)]"
-                      : "scale-100 text-zinc-500 opacity-[0.82] sm:text-zinc-400",
+                      ? "text-white opacity-100 [text-shadow:0_0_24px_rgba(255,255,255,0.12)]"
+                      : "text-zinc-500 opacity-[0.82] sm:text-zinc-400",
                   ].join(" ")}
                 >
                   {line.text}
                 </p>
                 {isLooping ? (
-                  <p className="mt-1 text-center text-xs font-semibold uppercase tracking-wider text-emerald-400/95 transition-opacity duration-500">
+                  <p className="mt-1 text-center text-xs font-semibold uppercase tracking-wider text-emerald-400/95 transition-opacity duration-75">
                     Loop A–B neste verso
                   </p>
                 ) : null}
