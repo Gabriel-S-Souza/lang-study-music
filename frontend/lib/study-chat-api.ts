@@ -1,5 +1,8 @@
 import { getPublicApiBaseUrl } from "@/lib/env";
 
+/** Prefixo da linha de contexto do título (alinhar com `PHRASE_CHAT_VIDEO_MUSIC_TITLE_PREFIX` em `backend/study_phrase.py`). */
+export const PHRASE_CHAT_VIDEO_MUSIC_TITLE_PREFIX = "Video/Music title:" as const;
+
 export type StudyChatRole = "user" | "model";
 
 export interface StudyChatMessage {
@@ -13,6 +16,8 @@ export interface PhraseChatRequestBody {
   readonly lineIndex: number;
   readonly lineText: string;
   readonly messages: readonly StudyChatMessage[];
+  /** Título do vídeo (iframe); omitir se desconhecido. */
+  readonly videoTitle?: string;
 }
 
 export interface ReusableChunkDto {
@@ -91,11 +96,22 @@ export class PhraseChatFetchError extends Error {
 
 export async function fetchPhraseChat(body: PhraseChatRequestBody): Promise<PhraseChatResponseDto> {
   const base = getPublicApiBaseUrl();
+  const payload: Record<string, unknown> = {
+    modelId: body.modelId,
+    videoId: body.videoId,
+    lineIndex: body.lineIndex,
+    lineText: body.lineText,
+    messages: body.messages,
+  };
+  const title = body.videoTitle?.trim();
+  if (title !== undefined && title.length > 0) {
+    payload.videoTitle = title;
+  }
   const res = await fetch(`${base}/api/study/phrase-chat`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     cache: "no-store",
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 
   const text = await res.text();
@@ -118,6 +134,14 @@ export async function fetchPhraseChat(body: PhraseChatRequestBody): Promise<Phra
 }
 
 /** Texto do primeiro turno alinhado ao backend para o histórico de continuação. */
-export function buildOpeningUserContentForHistory(lineText: string): string {
-  return `Frase em inglês (legenda, uma linha):\n\n${lineText}\n\nAnalise para o meu aprendizado e preencha o JSON conforme as instruções do sistema.`;
+export function buildOpeningUserContentForHistory(
+  lineText: string,
+  videoTitle?: string | null,
+): string {
+  const core = `Frase em inglês (legenda, uma linha):\n\n${lineText}\n\nAnalise para o meu aprendizado e preencha o JSON conforme as instruções do sistema.`;
+  const t = videoTitle?.trim();
+  if (t === undefined || t.length === 0) {
+    return core;
+  }
+  return `${PHRASE_CHAT_VIDEO_MUSIC_TITLE_PREFIX} ${t}\n\n${core}`;
 }

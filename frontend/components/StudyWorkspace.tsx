@@ -10,6 +10,7 @@ import {
   buildInitialTranslationState,
   persistTranslation,
 } from "@/lib/translations-storage";
+import { readYoutubePlayerTitle } from "@/lib/read-youtube-player-title";
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import {
@@ -69,6 +70,7 @@ export function StudyWorkspace({
   const [assistantCtx, setAssistantCtx] = useState<{
     lineIndex: number;
     lineText: string;
+    videoTitle?: string;
   } | null>(null);
   const [geminiModelId, setGeminiModelId] = useState(GEMINI_MODEL_FLASH);
   const [playbackRate, setPlaybackRate] = useState<StudyPlaybackRate>(1);
@@ -204,10 +206,15 @@ export function StudyWorkspace({
       if (transcript === null) return;
       const line = transcript.lines[lineIndex];
       if (!line) return;
-      setAssistantCtx({ lineIndex, lineText: line.text });
+      const fromPlayer = readYoutubePlayerTitle(player);
+      setAssistantCtx(
+        fromPlayer !== null
+          ? { lineIndex, lineText: line.text, videoTitle: fromPlayer }
+          : { lineIndex, lineText: line.text },
+      );
       setAssistantOpen(true);
     },
-    [transcript],
+    [player, transcript],
   );
 
   const handleCloseAssistant = useCallback((): void => {
@@ -467,6 +474,7 @@ export function StudyWorkspace({
           videoId={videoId}
           lineIndex={assistantCtx.lineIndex}
           lineText={assistantCtx.lineText}
+          videoTitle={assistantCtx.videoTitle}
           modelId={geminiModelId}
           onModelChange={handleGeminiModelChange}
           onAcceptTranslation={handleAcceptAssistantTranslation}

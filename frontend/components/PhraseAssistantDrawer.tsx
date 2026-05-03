@@ -25,6 +25,8 @@ export interface PhraseAssistantDrawerProps {
   readonly videoId: string;
   readonly lineIndex: number;
   readonly lineText: string;
+  /** Título do vídeo (iframe); omitir se desconhecido. */
+  readonly videoTitle?: string;
   readonly modelId: string;
   readonly onModelChange: (modelId: string) => void;
   readonly onAcceptTranslation: (translation: string) => void;
@@ -54,6 +56,7 @@ export function PhraseAssistantDrawer({
   videoId,
   lineIndex,
   lineText,
+  videoTitle,
   modelId,
   onModelChange,
   onAcceptTranslation,
@@ -82,9 +85,12 @@ export function PhraseAssistantDrawer({
         lineIndex,
         lineText,
         messages: [],
+        ...(videoTitle !== undefined && videoTitle.trim().length > 0
+          ? { videoTitle: videoTitle.trim() }
+          : {}),
       });
       if (seq !== requestSeq.current) return;
-      const openingUser = buildOpeningUserContentForHistory(lineText);
+      const openingUser = buildOpeningUserContentForHistory(lineText, videoTitle);
       setHistory([
         { role: "user", content: openingUser },
         { role: "model", content: data.assistantMessage },
@@ -100,7 +106,7 @@ export function PhraseAssistantDrawer({
         setLoading(false);
       }
     }
-  }, [lineIndex, lineText, videoId]);
+  }, [lineIndex, lineText, videoId, videoTitle]);
 
   useEffect(() => {
     if (!open) return;

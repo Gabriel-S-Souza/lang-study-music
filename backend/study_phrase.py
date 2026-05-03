@@ -27,6 +27,9 @@ ALLOWED_MODEL_IDS: frozenset[str] = frozenset({MODEL_FLASH, MODEL_FLASH_LITE})
 
 VIDEO_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 
+# Prefixo da linha de contexto do título (alinhar com PHRASE_CHAT_VIDEO_MUSIC_TITLE_PREFIX em frontend/lib/study-chat-api.ts).
+PHRASE_CHAT_VIDEO_MUSIC_TITLE_PREFIX = "Video/Music title:"
+
 
 class ChatMessageIn(BaseModel):
     role: Literal["user", "model"]
@@ -41,6 +44,7 @@ class PhraseChatRequest(BaseModel):
     line_index: int = Field(alias="lineIndex", ge=0, le=500_000)
     line_text: str = Field(alias="lineText", min_length=1, max_length=4000)
     messages: list[ChatMessageIn] = Field(default_factory=list)
+    video_title: str | None = Field(default=None, alias="videoTitle", max_length=300)
 
 
 class ReusableChunkOut(BaseModel):
@@ -122,11 +126,20 @@ def _gemini_client():
     return genai.Client(api_key=key)
 
 
-def _generate_opening(model_id: str, line_text: str) -> tuple[_OpeningJson, str]:
+def _generate_opening(
+    model_id: str,
+    line_text: str,
+    video_title: str | None = None,
+) -> tuple[_OpeningJson, str]:
     from google.genai import types  # type: ignore[import-untyped]
 
     client = _gemini_client()
-    user_text = OPENING_USER_TEMPLATE.format(line_text=line_text.strip())
+    base_user = OPENING_USER_TEMPLATE.format(line_text=line_text.strip())
+    title_stripped = (video_title or "").strip()
+    if title_stripped:
+        user_text = f"{PHRASE_CHAT_VIDEO_MUSIC_TITLE_PREFIX} {title_stripped}\n\n{base_user}"
+    else:
+        user_text = base_user
     schema = {
         "type": "object",
         "properties": {
@@ -235,7 +248,7 @@ def phrase_chat(body: PhraseChatRequest) -> PhraseChatResponse:
 
     if len(body.messages) == 0:
         try:
-            parsed, assistant_message = _generate_opening(model_id, line_text)
+            parsed, assistant_message = _generate_opening(model_id, line_text, body.video_title)
         except HTTPException as he:
             if he.status_code == 503:
                 logger.warning("Gemini indisponível (%s), usando tradução automática.", he.detail)
