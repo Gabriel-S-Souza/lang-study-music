@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -46,19 +45,14 @@ class TranscriptResponse(BaseModel):
     lines: list[TranscriptLine]
 
 
-def _parse_origins(value: str) -> list[str]:
-    parts = [p.strip() for p in value.split(",") if p.strip()]
-    return parts or ["http://localhost:3000"]
-
-
 app = FastAPI(title="English Study Music API", version="1.0.0")
 
 setup_http_request_logging()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_parse_origins(os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")),
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

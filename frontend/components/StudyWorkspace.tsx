@@ -277,7 +277,7 @@ export function StudyWorkspace({
               </p>
             </div>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row sm:items-center">
+          <div className="hidden w-full flex-col gap-2 sm:max-w-xl sm:flex-row sm:items-center lg:flex">
             <input
               type="text"
               value={urlOrIdInput}
@@ -311,9 +311,29 @@ export function StudyWorkspace({
             : "mx-auto w-full max-w-[1800px] px-2 py-4 sm:px-3 sm:py-5 lg:px-4 lg:py-6"
         }
       >
+        {studyLayoutActive ? (
+          <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-white/5 pb-1.5 lg:hidden">
+            <span className="min-w-0 truncate font-mono text-[10px] text-zinc-500" title={videoId ?? undefined}>
+              {videoId}
+            </span>
+            <span className={playerReady ? "shrink-0 text-[10px] text-emerald-400" : "shrink-0 text-[10px] text-amber-400"}>
+              {playerReady ? "Pronto" : "Carregando…"}
+            </span>
+          </div>
+        ) : null}
         {videoId === null || transcript === null ? (
-          <p className="mt-8 text-center text-sm text-zinc-500">
-            Cole o link de uma música no YouTube e carregue as legendas em inglês para começar.
+          <p className="mt-8 max-w-md px-2 text-center text-sm text-zinc-500 lg:max-w-none lg:px-0">
+            <span className="lg:hidden">
+              Para estudar outra música, volte à{" "}
+              <Link href="/" className="font-medium text-emerald-400/95 underline-offset-2 hover:underline">
+                biblioteca
+              </Link>{" "}
+              ou use um link com <code className="rounded bg-white/10 px-1 py-0.5 font-mono text-xs">?v=</code> do
+              YouTube. Em telas grandes você pode colar a URL no topo.
+            </span>
+            <span className="hidden lg:inline">
+              Cole o link de uma música no YouTube e carregue as legendas em inglês para começar.
+            </span>
           </p>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3 lg:grid lg:flex-none lg:min-h-0 lg:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)] lg:gap-6 xl:gap-8">
@@ -321,7 +341,7 @@ export function StudyWorkspace({
               <div className="aspect-video w-full overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
                 <div ref={mountRef} className="h-full w-full" />
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-zinc-500 sm:text-xs">
+              <div className="hidden flex-wrap items-center justify-between gap-1.5 text-[10px] text-zinc-500 sm:text-xs lg:flex">
                 <span className="min-w-0 truncate font-mono text-zinc-400">ID: {videoId}</span>
                 <span className={playerReady ? "shrink-0 text-emerald-400" : "shrink-0 text-amber-400"}>
                   {playerReady ? "Pronto" : "Carregando…"}
