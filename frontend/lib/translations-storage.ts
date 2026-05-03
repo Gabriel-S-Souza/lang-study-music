@@ -57,6 +57,32 @@ export function persistTranslation(
   writeStore({ ...store, [videoId]: bucket });
 }
 
+/** Mescla várias linhas num único `setItem` (ex.: tradução em lote). */
+export function persistTranslationsForVideo(
+  videoId: string,
+  updates: Readonly<Record<number, string>>,
+): void {
+  const store = readStore();
+  const bucket: Record<string, string> = { ...(store[videoId] ?? {}) };
+  for (const [k, text] of Object.entries(updates)) {
+    const idx = Number.parseInt(k, 10);
+    if (!Number.isFinite(idx)) continue;
+    const key = String(idx);
+    if (text.trim().length === 0) {
+      delete bucket[key];
+    } else {
+      bucket[key] = text;
+    }
+  }
+  if (Object.keys(bucket).length === 0) {
+    const nextStore: RawStore = { ...store };
+    delete nextStore[videoId];
+    writeStore(nextStore);
+    return;
+  }
+  writeStore({ ...store, [videoId]: bucket });
+}
+
 export function buildInitialTranslationState(
   videoId: string,
   lines: readonly TranscriptLine[],

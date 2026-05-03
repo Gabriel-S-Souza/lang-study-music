@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactElement } from "re
 
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { PhraseAssistantDrawer } from "@/components/PhraseAssistantDrawer";
+import { BulkTranslateFetchError, fetchBulkTranslate } from "@/lib/bulk-translate-api";
 import { TranscriptFetchError, fetchTranscript } from "@/lib/fetch-transcript";
 import {
   buildInitialTranslationState,
   persistTranslation,
+  persistTranslationsForVideo,
 } from "@/lib/translations-storage";
 import { readYoutubePlayerTitle } from "@/lib/read-youtube-player-title";
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
@@ -74,6 +76,8 @@ export function StudyWorkspace({
   } | null>(null);
   const [geminiModelId, setGeminiModelId] = useState(GEMINI_MODEL_FLASH);
   const [playbackRate, setPlaybackRate] = useState<StudyPlaybackRate>(1);
+  const [bulkTranslating, setBulkTranslating] = useState(false);
+  const [bulkTranslateError, setBulkTranslateError] = useState<string | null>(null);
 
   const apiReady = useYoutubeIframeApiReady();
   const { mountRef, player, playerReady } = useYoutubeStudyPlayer(apiReady, videoId);
@@ -162,6 +166,10 @@ export function StudyWorkspace({
   }, [videoId]);
 
   useEffect(() => {
+    setBulkTranslateError(null);
+  }, [videoId]);
+
+  useEffect(() => {
     setGeminiModelId(getStoredGeminiModelId());
   }, []);
 
@@ -247,6 +255,46 @@ export function StudyWorkspace({
     addSavedVideo(raw);
     setSavedInLibrary(true);
   }, [urlOrIdInput, videoId]);
+
+  const handleBulkTranslate = useCallback(async (): Promise<void> => {
+    if (videoId === null || transcript === null) return;
+    setBulkTranslateError(null);
+
+    const items: { lineIndex: number; text: string }[] = [];
+    for (let i = 0; i < transcript.lines.length; i++) {
+      const line = transcript.lines[i];
+      if (line === undefined) continue;
+      const lyric = line.text.trim();
+      if (lyric.length === 0) continue;
+      const existing = (translations[i] ?? "").trim();
+      if (existing.length > 0) continue;
+      items.push({ lineIndex: i, text: lyric });
+    }
+    if (items.length === 0) return;
+
+    setBulkTranslating(true);
+    try {
+      const code = transcript.languageCode.trim();
+      const sourceLanguage = code.length > 0 && code !== "unknown" ? code : "en";
+      const data = await fetchBulkTranslate({
+        videoId,
+        sourceLanguage,
+        items,
+      });
+      const next: Record<number, string> = {};
+      for (const row of data.translations) {
+        next[row.lineIndex] = row.translatedText;
+      }
+      setTranslations((prev) => ({ ...prev, ...next }));
+      persistTranslationsForVideo(videoId, next);
+    } catch (e) {
+      const msg =
+        e instanceof BulkTranslateFetchError ? e.message : "Falha ao traduzir linhas vazias.";
+      setBulkTranslateError(msg);
+    } finally {
+      setBulkTranslating(false);
+    }
+  }, [transcript, translations, videoId]);
 
   const handleRemoveFromLibrary = useCallback((): void => {
     if (videoId === null) return;
@@ -448,7 +496,37 @@ export function StudyWorkspace({
                     </svg>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    void handleBulkTranslate();
+                  }}
+                  disabled={bulkTranslating}
+                  aria-busy={bulkTranslating || undefined}
+                  aria-label="Traduzir linhas vazias com Google Cloud Translation"
+                  title="Traduzir só linhas sem anotação (Google Cloud)"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/15 text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:w-8"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${bulkTranslating ? "animate-pulse" : ""}`}
+                    aria-hidden
+                  >
+                    <path d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802" />
+                  </svg>
+                </button>
               </div>
+              {bulkTranslateError !== null ? (
+                <p className="text-[10px] leading-snug text-red-400/95 sm:text-xs" role="alert">
+                  {bulkTranslateError}
+                </p>
+              ) : null}
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-zinc-900/80 to-[#0a0a0a] ring-1 ring-white/5 lg:max-h-[calc(100dvh-6.5rem)] lg:min-h-[50vh] lg:flex-none">

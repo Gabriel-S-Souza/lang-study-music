@@ -21,6 +21,7 @@ from youtube_transcript_api._errors import (
     YouTubeRequestFailed,
 )
 
+from bulk_translate import router as bulk_translate_router
 from http_logging_middleware import HttpRequestLoggingMiddleware, setup_http_request_logging
 from study_phrase import router as study_phrase_router
 
@@ -61,6 +62,7 @@ app.add_middleware(HttpRequestLoggingMiddleware)
 _ytt_api = YouTubeTranscriptApi()
 
 app.include_router(study_phrase_router, prefix="/api/study", tags=["study"])
+app.include_router(bulk_translate_router, prefix="/api/study", tags=["study"])
 
 
 @app.get("/api/videos/{video_id}/transcript", response_model=TranscriptResponse)

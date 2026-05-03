@@ -11,6 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from gcp_translate_v2 import translate_texts_v2
 from prompts import CONTINUATION_SYSTEM, OPENING_SYSTEM, OPENING_USER_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -103,15 +104,11 @@ def _normalize_opening_chunks(raw: list[dict[str, str]]) -> list[ReusableChunkOu
 
 
 def _translate_en_to_pt(text: str) -> str:
-    from google.cloud import translate_v2 as translate  # type: ignore[import-untyped]
-
-    client = translate.Client()
-    result = client.translate(text, source_language="en", target_language="pt")
-    translated = result.get("translatedText")
-    if not translated or not isinstance(translated, str):
+    out = translate_texts_v2([text], source_language="en", target_language="pt")
+    if len(out) != 1:
         msg = "Cloud Translation devolveu resposta vazia."
         raise RuntimeError(msg)
-    return translated
+    return out[0]
 
 
 def _gemini_client():
